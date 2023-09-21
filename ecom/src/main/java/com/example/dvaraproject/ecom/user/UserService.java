@@ -1,0 +1,74 @@
+package com.example.dvaraproject.ecom.user;
+
+import com.example.dvaraproject.ecom.exception.UserAlreadyExistsException;
+import com.example.dvaraproject.ecom.exception.UserNotFoundException;
+import com.example.dvaraproject.ecom.role.Role;
+import com.example.dvaraproject.ecom.role.RoleRepository;
+import javax.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class UserService implements IUserService {
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final RoleRepository roleRepository;
+    
+
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, RoleRepository roleRepository) {
+		super();
+		this.userRepository = userRepository;
+		this.passwordEncoder = passwordEncoder;
+		this.roleRepository = roleRepository;
+	}
+
+	@Override
+    public User add(User user) {
+        Optional<User> theUser = userRepository.findByEmail(user.getEmail());
+        if (theUser.isPresent()){
+            throw new UserAlreadyExistsException("A user with " +user.getEmail() +" already exists");
+        }
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        Role role = roleRepository.findByName("ROLE_USER").get();
+        user.setRoles(Collections.singletonList(role));
+        return userRepository.save(user);
+    }
+
+    @Override
+    public List<UserRecord> getAllUsers() {
+        return userRepository.findAll()
+                .stream()
+                .map(user -> new UserRecord(
+                        user.getId(),
+                        user.getFirstName(),
+                        user.getLastName(),
+                        user.getEmail(),
+                       new HashSet<>(user.getRoles()))).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void delete(String email) {
+        userRepository.deleteByEmail(email);
+    }
+
+    @Override
+    public User getUser(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+    }
+
+    @Override
+    public User update(User user) {
+        user.setRoles(user.getRoles());
+        return userRepository.save(user);
+    }
+}
